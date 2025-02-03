@@ -17,7 +17,7 @@ class ThreadPool{
     public:
         ThreadPool (size_t);
         template<class F, class... Args> 
-        auto ThreadPool::enqueue(F &&f,Args&&... args ) -> std::future<typename std::result_of<F(Args...)> :: type>;
+        auto enqueue(F &&f,Args&&... args ) -> std::future<typename std::result_of<F(Args...)>::type>;
         ~ThreadPool();
     
     private:
@@ -50,31 +50,29 @@ inline ThreadPool::ThreadPool (size_t threads)
         }
     };
 
-    for(size_t i = 0; i <= threads; i ++){
+    for(size_t i = 0; i < threads; i ++){
         workers.emplace_back(fun);
     }
 }
 template <class F, class... Args>
 inline auto ThreadPool::enqueue(F &&f, Args &&...args) -> std::future<typename std::result_of<F(Args...)>::type>
 {
-    using type_rt = typename std::result_of<F(Args...)> ::type>;
+    using type_rt = typename std::result_of<F(Args...)>::type;
     
     auto task = std::make_shared<std::packaged_task <type_rt()>> (
         std:: bind(std::forward<F>(f), std::forward <Args>(args)...)
     );
 
-    std::future<type_rt> res = this -> get_future(); 
+    std::future<type_rt> res = task -> get_future(); 
 
     {
         std::unique_lock<std::mutex> lock(mutex_queue);
         if(stop)
             throw std::runtime_error("enqueue stop the ThreadPool");
-        //存疑
-        auto task_ptr = tasks.front();
-        tasks.pop();
-        tasks.emplace(*task_ptr);
+
+        tasks.emplace([task](){ (*task)(); });
     }
-    condition.notify_one()l
+    condition.notify_one();
     return res;
 }
 
